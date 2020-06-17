@@ -148,6 +148,7 @@ class FData(Data):
         self.data[facility, FData.sumSwitchInputs] = np.nansum(
             self.switchOffers[facility, :]
         )
+
         alphaTuple = (
             (
                 fCosts[facility]
@@ -356,6 +357,7 @@ class FacilityLocation:
         # offers to.
         for facility in np.nonzero(switchMask & self.connectionMask.mask[cities, :])[1]:
             self.logger.debug(f"Registering {facility} as a switch candidate.")
+            self.fData.data[facility, FData.numInputs] += 1
             self.fData.registerCandidate(facility, self.fCosts)
             for city in np.nonzero(
                 switchMask[:, facility] & self.connectionMask.mask[cities, facility]
@@ -419,7 +421,7 @@ class FacilityLocation:
         self.fData.offers[facility] = np.nan
         self.cData.offers[:, facility] = np.nan
 
-    def solve(self, fcPairs=None, haveDummy=False):
+    def solve(self, fcPairs=None, haveDummy=False, allCitiesMustConnect=True):
         # If an explicit subset of pairs to consider is not passed then compute
         # a default set of all available pairs.
         # Only off-diagonal elements in the costs array need to be considered
@@ -504,16 +506,17 @@ class FacilityLocation:
 
         # Continue opening facilities until all cities are connected to something
         # or the candidate list is exhausted.
-        while (
-            self.cData.haveUnconnectedCities(haveDummy=np.int64(haveDummy))
-            and self.fData.haveCandidates()
-        ):
-            self.logger.info("Trying to connect left over cities...")
-            try:
-                self.openFacility(*self.fData.getMinAlphaCandidate()[:-1])
-            except TypeError as e:
-                if self.fData.haveCandidates():
-                    self.logger.warning("Unexpected error: ", e)
-                else:
-                    self.logger.info("No more candidates.")
-                    break
+        if allCitiesMustConnect:
+            while (
+                self.cData.haveUnconnectedCities(haveDummy=np.int64(haveDummy))
+                and self.fData.haveCandidates()
+            ):
+                self.logger.info("Trying to connect left over cities...")
+                try:
+                    self.openFacility(*self.fData.getMinAlphaCandidate()[:-1])
+                except TypeError as e:
+                    if self.fData.haveCandidates():
+                        self.logger.warning("Unexpected error: ", e)
+                    else:
+                        self.logger.info("No more candidates.")
+                        break
