@@ -96,6 +96,7 @@ class FData(Data):
     sumStandardInputs = 4
     sumSwitchInputs = 5
     isConnected = 6
+    isCleanup = 7
 
     nameIndexKey = dict(
         isOpen=0,
@@ -104,11 +105,13 @@ class FData(Data):
         numInputs=3,
         sumStandardInputs=4,
         sumSwitchInputs=5,
+        isConnected=6,
+        isCleanup=7,
     )
 
     def __init__(self, nF, nC, logger=None):
         # Note: Change the 5 value if required
-        super().__init__((nF, 7), (nF, nC), logger)
+        super().__init__((nF, 8), (nF, nC), logger)
         self.alphas = []
 
     def addCandidate(self, alphaTuple):
@@ -394,7 +397,7 @@ class FacilityLocation:
             # are disallowed at that stage.
             self.connectionMask.processConnect(city, facility)
 
-    def openFacility(self, alpha, facility):
+    def openFacility(self, alpha, facility, cleanup=0):
         # Get the cities that have offers to facility
         offeringCities = np.flatnonzero(~np.isnan(self.fData.offers[facility]))
         switchingCities = np.flatnonzero(~np.isnan(self.fData.switchOffers[facility]))
@@ -412,6 +415,8 @@ class FacilityLocation:
         # Register that the facility is now open.
         self.fData.data[facility, FData.isCandidate] = 0
         self.fData.data[facility, FData.isOpen] = 1
+        self.fData.data[facility, FData.isCleanup] = cleanup
+
         # Connect all offering cities to the facility.
         # At this point there should be no offers registered from
         # *connected* cities or between unconnected cities and
@@ -436,6 +441,7 @@ class FacilityLocation:
                 ]
             )  # 2xN
 
+        # Explicitly filters any pairs with NaN connection costs.
         validFcPairs = fcPairs[:, ~np.isnan(self.fcCosts[tuple(fcPairs)])]  # 2xN_valid
 
         # sort the relevant costs into ascending order
@@ -513,7 +519,7 @@ class FacilityLocation:
             ):
                 self.logger.info("Trying to connect left over cities...")
                 try:
-                    self.openFacility(*self.fData.getMinAlphaCandidate()[:-1])
+                    self.openFacility(*self.fData.getMinAlphaCandidate()[:-1], cleanup=1)
                 except TypeError as e:
                     if self.fData.haveCandidates():
                         self.logger.warning("Unexpected error: ", e)
